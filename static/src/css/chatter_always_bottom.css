@@ -1,21 +1,32 @@
 /*
  * Chatter Always Bottom — Odoo 19
- * Alphaqueb Consulting SAS
+ * Alphaqueb Consulting SAS — v1.0.1
  *
- * Estrategia multi-capa:
- *  1. Revertir el layout flex-row que activa el chatter lateral (xxl breakpoint).
- *  2. Neutralizar la clase .o-aside que Odoo inyecta en el contenedor del chatter.
- *  3. Asegurar que el formulario ocupe el ancho disponible de forma normal.
- *  4. Limpiar estilos de borde, altura y overflow que pertenecen al modo lateral.
+ * FIX:
+ *  - Elimina el espacio en blanco que quedaba del slot aside.
+ *  - Restaura el scroll vertical del formulario.
+ *  - Expande el chatter al 100% del ancho disponible.
+ *
+ * RAÍZ DEL PROBLEMA:
+ * En modo xxl Odoo hace:
+ *   .o_form_view { display:flex; flex-direction:row; height:100%; overflow:hidden }
+ *   .o_form_view_container { flex:1; overflow-y:auto; height:100% }
+ *   .o_FormRenderer_chatterContainer.o-aside { width:360px; overflow-y:auto }
+ *
+ * Al cambiar a column, el height:100% + overflow:hidden en el padre
+ * atrapa el contenido → sin scroll. El scroll debe subirlo al padre.
  */
 
-/* ─────────────────────────────────────────────────────────────
-   1. LAYOUT DEL FORM VIEW EN PANTALLAS ANCHAS
-      Odoo añade o_xxl_form_view cuando la pantalla supera el
-      breakpoint xxl. Eso cambia el flex-direction a 'row',
-      enviando el chatter a la derecha. Lo devolvemos a column.
-   ───────────────────────────────────────────────────────────── */
-.o_form_view.o_xxl_form_view,
+/* 1. Liberar el form view de su caja fija de altura */
+.o_form_view.o_xxl_form_view {
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+}
+
+/* 2. El renderer interno — también column */
 .o_form_view.o_xxl_form_view .o_form_renderer {
     flex-direction: column !important;
     flex-wrap: nowrap !important;
@@ -23,77 +34,86 @@
     overflow: visible !important;
 }
 
-/* El contenedor interno del form view */
+/* 3. El padre del form view maneja el scroll.
+      :has() es soporte moderno (Chrome 105+, Firefox 121+, Safari 15.4+).
+      El fallback aplica en todos. */
+.o_view_controller:has(.o_form_view.o_xxl_form_view),
+.o_content:has(.o_form_view.o_xxl_form_view) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+.o_view_controller,
+.o_content {
+    overflow-y: auto !important;
+}
+
+/* 4. Liberar el scroll container interno de la columna izquierda */
 .o_form_view.o_xxl_form_view .o_form_view_container {
     width: 100% !important;
     max-width: 100% !important;
+    flex: 1 1 auto !important;
     overflow: visible !important;
+    height: auto !important;
+}
+
+/* 5. Form sheet bg — ancho completo */
+.o_form_view.o_xxl_form_view .o_form_sheet_bg {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   2. CONTENEDOR DEL CHATTER
-      Sea cual sea la clase que Odoo le asigne (.o-aside,
-      .oe_chatter, etc.) forzamos que ocupe todo el ancho
-      y no actúe como columna lateral.
+   CHATTER CONTAINER — ancho total, eliminar vestidos de aside
    ───────────────────────────────────────────────────────────── */
 .o_FormRenderer_chatterContainer,
 .o_FormRenderer_chatterContainer.o-aside,
 .o_FormRenderer_chatterContainer.oe_chatter,
 .o_FormRenderer_chatterContainer.oe_chatter.o-aside {
-    /* Ancho completo, nunca un panel lateral */
     width: 100% !important;
     max-width: 100% !important;
-    min-width: 100% !important;
+    min-width: 0 !important;
     flex: 0 0 100% !important;
+    align-self: stretch !important;
 
-    /* Eliminar estilos del modo aside */
-    border-left: none !important;
+    /* Eliminar vestigios del modo aside */
     position: static !important;
     top: auto !important;
     bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    border-left: none !important;
+
+    /* Ceder el scroll al padre */
     overflow-y: visible !important;
+    overflow-x: visible !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
 
-    /* Separador visual respecto al form sheet */
+    /* Separador visual */
     border-top: 1px solid var(--o-form-view-separator-color, var(--bs-border-color, #dee2e6)) !important;
     margin-top: 0 !important;
+    padding-top: 0 !important;
+    box-sizing: border-box !important;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   3. FORM SHEET BG — asegurar que no quede con ancho reducido
-      cuando Odoo intenta hacer la columna del form + columna
-      del chatter en paralelo.
-   ───────────────────────────────────────────────────────────── */
-.o_form_view.o_xxl_form_view .o_form_sheet_bg {
-    flex: 1 1 100% !important;
+/* Elemento interno .o_chatter */
+.o_FormRenderer_chatterContainer .o_chatter,
+.o_FormRenderer_chatterContainer.o-aside .o_chatter {
     width: 100% !important;
-    min-width: 0 !important;
+    max-width: 100% !important;
+    height: auto !important;
     overflow: visible !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
-   4. BOTÓN DE TOGGLE CHATTER POSITION (si existe)
-      Algunos builds de Odoo o módulos adicionales inyectan
-      un botón para cambiar la posición. Lo ocultamos ya que
-      este módulo impone la posición de forma permanente.
+   OCULTAR BOTÓN DE TOGGLE DE POSICIÓN (si existe)
    ───────────────────────────────────────────────────────────── */
 .o_form_button_open_chatter,
 .o_ChatterTopbar_toggleButton,
-button.o_chatter_position_toggle,
-.o_form_statusbar .o_chatter_toggle {
+button.o_chatter_position_toggle {
     display: none !important;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   5. RESPONSIVIDAD — en pantallas pequeñas Odoo ya coloca el
-      chatter abajo por defecto, pero reforzamos por si acaso.
-   ───────────────────────────────────────────────────────────── */
-@media (max-width: 1533px) {
-    .o_FormRenderer_chatterContainer.o-aside {
-        width: 100% !important;
-        border-left: none !important;
-        border-top: 1px solid var(--bs-border-color, #dee2e6) !important;
-    }
 }
