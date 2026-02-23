@@ -1,135 +1,151 @@
 /** @odoo-module **/
 /**
  * Chatter Always Bottom — Odoo 19
- * Alphaqueb Consulting SAS — v5.0.0
+ * Alphaqueb Consulting SAS — v6.0.0 FINAL
  *
- * CSS inyectado directamente desde JS para evitar depender
- * del bundle de assets (que requiere -u para regenerarse).
- * El JS sí carga siempre sin necesidad de regenerar.
+ * DIAGNÓSTICO CONFIRMADO:
+ *  - Form flex-direction: row  (nuestro CSS perdía contra el bundle de Odoo)
+ *  - Chatter x:1400 fuera del viewport (posición de columna lateral)
+ *  - mailLayout @ form_renderer.js:51 → devuelve "aside" | "bottom"
  *
- * Clases reales confirmadas por diagnóstico en producción:
- *   Container : o-mail-ChatterContainer  (+ o-mail-Form-chatter)
- *   Aside     : o-aside
- *   Form view : o_xxl_form_view (flex-direction:row, ya cambia a column con JS)
+ * ESTRATEGIA v6:
+ *  1. Patch sincrónico de FormRenderer.mailLayout → siempre "bottom"
+ *     (evita que OWL genere el layout aside desde el inicio)
+ *  2. inline style.setProperty con 'important' en el form view
+ *     (gana sobre CUALQUIER regla !important de hojas de estilos)
+ *  3. MutationObserver como net de seguridad para re-renders
  */
 
-// ─── INYECCIÓN DE CSS ────────────────────────────────────────────────────────
-const CSS = `
-/* Chatter Always Bottom v5 — Alphaqueb Consulting SAS */
+import { patch } from "@web/core/utils/patch";
 
-/* 1. Form view: row → column + scroll */
-.o_form_view.o_xxl_form_view {
-    flex-direction: column !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-}
+// ─── CAPA 1: Patch de FormRenderer.mailLayout ────────────────────────────────
+// odoo.loader.modules.get() es SINCRÓNICO — el módulo ya está cargado
+// cuando nuestro código corre porque declaramos dependencia de @web/views/form/form_renderer
+const formRendererMod = odoo.loader.modules.get("@web/views/form/form_renderer");
 
-/* 2. Contenedor del form: ceder scroll al padre */
-.o_form_view.o_xxl_form_view > .o_form_view_container {
-    flex: 0 0 auto !important;
-    height: auto !important;
-    overflow: visible !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-height: 0 !important;
-}
-
-.o_form_view.o_xxl_form_view .o_form_renderer,
-.o_form_view.o_xxl_form_view .o_form_sheet_bg {
-    height: auto !important;
-    overflow: visible !important;
-    min-height: 0 !important;
-}
-
-/* 3. ChatterContainer — quitar columna lateral, ancho completo */
-.o-mail-ChatterContainer.o-aside,
-.o-mail-Form-chatter.o-aside,
-.o-mail-ChatterContainer,
-.o-mail-Form-chatter {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    flex: 0 0 auto !important;
-    position: static !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    border-left: none !important;
-}
-
-.o-mail-ChatterContainer.o-aside,
-.o-mail-Form-chatter.o-aside {
-    border-top: 1px solid var(--bs-border-color, #dee2e6) !important;
-}
-
-/* 4. Chatter interno: quitar h-100 que lo hace invisible en modo column */
-.o-mail-Chatter {
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    flex-grow: 0 !important;
-}
-
-.o-mail-Chatter-content {
-    height: auto !important;
-    overflow: visible !important;
-    flex-grow: 0 !important;
-}
-`;
-
-function injectCSS() {
-    if (document.getElementById("chatter-always-bottom-styles")) return;
-    const style = document.createElement("style");
-    style.id = "chatter-always-bottom-styles";
-    style.textContent = CSS;
-    document.head.appendChild(style);
-    console.debug("[CAB] CSS inyectado ✓");
-}
-
-// Inyectar lo antes posible
-if (document.head) {
-    injectCSS();
+if (formRendererMod?.FormRenderer) {
+    patch(formRendererMod.FormRenderer.prototype, {
+        /**
+         * Odoo usa este getter para decidir "aside" (chatter lateral)
+         * o "bottom" (chatter abajo). Forzamos siempre "bottom".
+         * Origen confirmado: mailLayout @ form_renderer.js:51
+         */
+        get mailLayout() {
+            return "bottom";
+        },
+    });
+    console.debug("[CAB] FormRenderer.mailLayout patched → 'bottom' ✓");
 } else {
-    document.addEventListener("DOMContentLoaded", injectCSS);
+    console.warn("[CAB] FormRenderer no encontrado en loader — usando solo CSS/DOM fallback");
 }
 
-// ─── MUTATIONOBSERVER: quitar o-aside del container ──────────────────────────
-const CHATTER = "o-mail-ChatterContainer";
-const ASIDE   = "o-aside";
+// ─── CAPA 2: Forzar estilos inline con !important (máxima prioridad CSS) ─────
+// element.style.setProperty(prop, value, 'important') gana sobre
+// cualquier regla !important en hojas de estilos externas.
+function forceFormLayout(formEl) {
+    if (!formEl) return;
+    formEl.style.setProperty("flex-direction", "column", "important");
+    formEl.style.setProperty("overflow-y", "auto", "important");
+    formEl.style.setProperty("overflow-x", "hidden", "important");
+}
 
-function removeAside(el) {
-    if (!el?.classList) return;
-    if (el.classList.contains(CHATTER) && el.classList.contains(ASIDE)) {
-        requestAnimationFrame(() => el.classList.remove(ASIDE));
-    }
+function forceChatterLayout(chatterEl) {
+    if (!chatterEl) return;
+    chatterEl.style.setProperty("width", "100%", "important");
+    chatterEl.style.setProperty("max-width", "100%", "important");
+    chatterEl.style.setProperty("position", "static", "important");
+    chatterEl.style.setProperty("height", "auto", "important");
+    chatterEl.style.setProperty("min-height", "0", "important");
+    chatterEl.style.setProperty("max-height", "none", "important");
+    chatterEl.style.setProperty("overflow", "visible", "important");
+    chatterEl.style.setProperty("border-left", "none", "important");
+    chatterEl.style.setProperty("flex", "0 0 auto", "important");
+}
+
+function forceFormContainerLayout(containerEl) {
+    if (!containerEl) return;
+    containerEl.style.setProperty("flex", "0 0 auto", "important");
+    containerEl.style.setProperty("height", "auto", "important");
+    containerEl.style.setProperty("overflow", "visible", "important");
+    containerEl.style.setProperty("width", "100%", "important");
+    containerEl.style.setProperty("max-width", "100%", "important");
+}
+
+function forceChatterInnerLayout(chatterInnerEl) {
+    if (!chatterInnerEl) return;
+    chatterInnerEl.style.setProperty("height", "auto", "important");
+    chatterInnerEl.style.setProperty("max-height", "none", "important");
+    chatterInnerEl.style.setProperty("overflow", "visible", "important");
+    chatterInnerEl.style.setProperty("flex-grow", "0", "important");
+}
+
+function applyAll() {
+    // Form view xxl
+    document.querySelectorAll(".o_form_view.o_xxl_form_view").forEach(forceFormLayout);
+    // Form view container (columna izquierda en modo row)
+    document.querySelectorAll(".o_form_view.o_xxl_form_view > .o_form_view_container").forEach(forceFormContainerLayout);
+    // ChatterContainer (clase real Odoo 19)
+    document.querySelectorAll(".o-mail-ChatterContainer, .o-mail-Form-chatter").forEach(forceChatterLayout);
+    // Chatter interno
+    document.querySelectorAll(".o-mail-Chatter").forEach(forceChatterInnerLayout);
+    // Quitar o-aside si existe
+    document.querySelectorAll(".o-mail-ChatterContainer.o-aside, .o-mail-Form-chatter.o-aside").forEach(el => {
+        el.classList.remove("o-aside");
+    });
+}
+
+// ─── CAPA 3: MutationObserver ─────────────────────────────────────────────────
+let applyTimer = null;
+function scheduleApply() {
+    if (applyTimer) return;
+    applyTimer = requestAnimationFrame(() => {
+        applyTimer = null;
+        applyAll();
+    });
 }
 
 const observer = new MutationObserver((mutations) => {
+    let relevant = false;
     for (const m of mutations) {
+        const el = m.target;
         if (m.type === "attributes" && m.attributeName === "class") {
-            removeAside(m.target);
+            if (el.classList?.contains("o_xxl_form_view") ||
+                el.classList?.contains("o-mail-ChatterContainer") ||
+                el.classList?.contains("o-mail-Form-chatter")) {
+                relevant = true;
+                break;
+            }
         } else if (m.type === "childList") {
-            m.addedNodes.forEach((n) => {
-                if (n.nodeType !== Node.ELEMENT_NODE) return;
-                removeAside(n);
-                n.querySelectorAll?.(`.${CHATTER}.${ASIDE}`).forEach(removeAside);
-            });
+            for (const node of m.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE &&
+                    (node.classList?.contains("o-mail-ChatterContainer") ||
+                     node.querySelector?.(".o-mail-ChatterContainer") ||
+                     node.classList?.contains("o_xxl_form_view"))) {
+                    relevant = true;
+                    break;
+                }
+            }
         }
+        if (relevant) break;
     }
+    if (relevant) scheduleApply();
 });
 
+// ─── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
-    injectCSS(); // segunda llamada por si acaso
     if (document.body) {
         observer.observe(document.body, {
             attributes: true,
-            attributeFilter: ["class"],
+            attributeFilter: ["class", "style"],
             childList: true,
             subtree: true,
         });
-        console.debug("[CAB] v5.0 activo — CSS inyectado, observer corriendo ✓");
+        // Aplicar inmediatamente por si ya hay un form montado
+        applyAll();
+        // Y de nuevo tras 500ms por si OWL terminó de renderizar después
+        setTimeout(applyAll, 500);
+        setTimeout(applyAll, 1500);
+        console.debug("[CAB] v6.0 activo ✓");
     } else {
         document.addEventListener("DOMContentLoaded", init);
     }
