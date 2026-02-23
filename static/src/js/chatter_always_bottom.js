@@ -1,87 +1,53 @@
 /** @odoo-module **/
 /**
  * Chatter Always Bottom — Odoo 19
- * Alphaqueb Consulting SAS — v1.0.1
+ * Alphaqueb Consulting SAS — v2.0.0
  *
- * CAPA 1: Parche OWL de ChatterContainer — suprime isChatterAside / isAsideChatter.
- * CAPA 2: Parche de FormRenderer — suprime hasChatterAside.
- * CAPA 3: MutationObserver — elimina la clase o-aside del DOM en tiempo real.
+ * El CSS ya cubre el caso .o-aside directamente.
+ * Este archivo solo actúa como red de seguridad DOM:
+ * si OWL re-renderiza y añade .o-aside, no crea conflictos
+ * porque el CSS con .o-aside ya fuerza el layout correcto.
  *
- * Todas las capas usan try/catch. Si una falla, las otras cubren.
+ * El MutationObserver es opcional pero previene cualquier
+ * flash visual o conflict con módulos de terceros que
+ * puedan escuchar la clase .o-aside para su lógica propia.
  */
 
-import { patch } from "@web/core/utils/patch";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CAPA 1: ChatterContainer patch
-// ─────────────────────────────────────────────────────────────────────────────
-(async () => {
-    try {
-        const mod = odoo.loader.modules.get("@mail/core/web/chatter_container");
-        if (mod?.ChatterContainer) {
-            patch(mod.ChatterContainer.prototype, {
-                get isChatterAside() { return false; },
-                get isAsideChatter() { return false; },
-                get chatterPosition() { return "bottom"; },
-            });
-            console.debug("[chatter_always_bottom] ChatterContainer patched ✓");
-        }
-    } catch (e) {
-        console.debug("[chatter_always_bottom] ChatterContainer skip:", e.message);
-    }
-})();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CAPA 2: FormRenderer patch
-// ─────────────────────────────────────────────────────────────────────────────
-(async () => {
-    try {
-        const mod = odoo.loader.modules.get("@web/views/form/form_renderer");
-        if (mod?.FormRenderer) {
-            patch(mod.FormRenderer.prototype, {
-                get hasChatterAside() { return false; },
-                get isChatterAside() { return false; },
-                get chatterPosition() { return "bottom"; },
-            });
-            console.debug("[chatter_always_bottom] FormRenderer patched ✓");
-        }
-    } catch (e) {
-        console.debug("[chatter_always_bottom] FormRenderer skip:", e.message);
-    }
-})();
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CAPA 3: MutationObserver — red de seguridad DOM
-// Si o-aside aparece en el contenedor del chatter, la quitamos.
-// También removemos o_xxl_form_view si el layout vuelve a activarse
-// como row (detectado via inline style o clase CSS).
-// ─────────────────────────────────────────────────────────────────────────────
-const CHATTER_SEL = "o_FormRenderer_chatterContainer";
+const CHATTER_CLASS = "o_FormRenderer_chatterContainer";
 const ASIDE_CLASS = "o-aside";
 
-function fixNode(el) {
-    if (!el.classList) return;
-    if (el.classList.contains(CHATTER_SEL) && el.classList.contains(ASIDE_CLASS)) {
-        requestAnimationFrame(() => el.classList.remove(ASIDE_CLASS));
+/**
+ * Si algún módulo de terceros lee .o-aside para hacer algo
+ * en JavaScript (ej. calcular anchos), esto previene esa lógica.
+ * El CSS solo es visual; esto asegura que la clase no exista.
+ */
+function removeAsideClass(el) {
+    if (el.classList && el.classList.contains(CHATTER_CLASS) && el.classList.contains(ASIDE_CLASS)) {
+        // Usamos requestAnimationFrame para no entrar en bucle con OWL
+        requestAnimationFrame(() => {
+            if (el.classList.contains(ASIDE_CLASS)) {
+                el.classList.remove(ASIDE_CLASS);
+            }
+        });
     }
 }
 
 const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
         if (m.type === "attributes" && m.attributeName === "class") {
-            fixNode(m.target);
+            removeAsideClass(m.target);
         } else if (m.type === "childList") {
-            m.addedNodes.forEach((n) => {
-                if (n.nodeType !== Node.ELEMENT_NODE) return;
-                fixNode(n);
-                n.querySelectorAll?.(`.${CHATTER_SEL}.${ASIDE_CLASS}`)
-                    .forEach((el) => requestAnimationFrame(() => el.classList.remove(ASIDE_CLASS)));
+            m.addedNodes.forEach((node) => {
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                removeAsideClass(node);
+                node.querySelectorAll?.(`.${CHATTER_CLASS}.${ASIDE_CLASS}`)
+                    .forEach(removeAsideClass);
             });
         }
     }
 });
 
-function startObserver() {
+function init() {
     if (document.body) {
         observer.observe(document.body, {
             attributes: true,
@@ -89,18 +55,9 @@ function startObserver() {
             childList: true,
             subtree: true,
         });
-        console.debug("[chatter_always_bottom] MutationObserver active ✓");
     } else {
-        document.addEventListener("DOMContentLoaded", () => {
-            observer.observe(document.body, {
-                attributes: true,
-                attributeFilter: ["class"],
-                childList: true,
-                subtree: true,
-            });
-            console.debug("[chatter_always_bottom] MutationObserver active (deferred) ✓");
-        });
+        document.addEventListener("DOMContentLoaded", init);
     }
 }
 
-startObserver();
+init();

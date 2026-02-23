@@ -1,117 +1,107 @@
 /*
  * Chatter Always Bottom — Odoo 19
- * Alphaqueb Consulting SAS — v1.0.1
+ * Alphaqueb Consulting SAS — v2.0.0
  *
- * FIX:
- *  - Elimina el espacio en blanco que quedaba del slot aside.
- *  - Restaura el scroll vertical del formulario.
- *  - Expande el chatter al 100% del ancho disponible.
+ * ANÁLISIS DEL PROBLEMA:
+ * En modo xxl Odoo usa este layout:
+ *   .o_form_view { display:flex; flex-direction:ROW; height:100%; overflow:hidden }
+ *     .o_form_view_container { flex:1; height:100%; overflow-y:auto }  ← scroll del form
+ *     .o_FormRenderer_chatterContainer.o-aside { width:360px; height:100%; overflow-y:auto }  ← scroll del chatter
  *
- * RAÍZ DEL PROBLEMA:
- * En modo xxl Odoo hace:
- *   .o_form_view { display:flex; flex-direction:row; height:100%; overflow:hidden }
- *   .o_form_view_container { flex:1; overflow-y:auto; height:100% }
- *   .o_FormRenderer_chatterContainer.o-aside { width:360px; overflow-y:auto }
+ * OBJETIVO:
+ *   .o_form_view { flex-direction:COLUMN; height:100%; overflow-y:auto }  ← EL FORM VIEW HACE EL SCROLL
+ *     .o_form_view_container { height:auto; overflow:visible }  ← crece con el contenido
+ *     .o_FormRenderer_chatterContainer { width:100%; height:auto; overflow:visible }  ← ancho total
  *
- * Al cambiar a column, el height:100% + overflow:hidden en el padre
- * atrapa el contenido → sin scroll. El scroll debe subirlo al padre.
+ * CRÍTICO: NO tocar selectores globales como .o_view_controller o .o_content.
+ * Solo apuntar a .o_xxl_form_view y sus hijos directos.
  */
 
-/* 1. Liberar el form view de su caja fija de altura */
+/* ═══════════════════════════════════════════════════════════════
+   PASO 1: Cambiar de fila a columna + convertir el form view en
+   scroll container. overflow-y:auto aquí es la clave del scroll.
+   ═══════════════════════════════════════════════════════════════ */
 .o_form_view.o_xxl_form_view {
     flex-direction: column !important;
-    flex-wrap: nowrap !important;
-    height: auto !important;
-    min-height: 100% !important;
-    overflow: visible !important;
-}
-
-/* 2. El renderer interno — también column */
-.o_form_view.o_xxl_form_view .o_form_renderer {
-    flex-direction: column !important;
-    flex-wrap: nowrap !important;
-    height: auto !important;
-    overflow: visible !important;
-}
-
-/* 3. El padre del form view maneja el scroll.
-      :has() es soporte moderno (Chrome 105+, Firefox 121+, Safari 15.4+).
-      El fallback aplica en todos. */
-.o_view_controller:has(.o_form_view.o_xxl_form_view),
-.o_content:has(.o_form_view.o_xxl_form_view) {
-    overflow-y: auto !important;
+    overflow-y: auto !important;    /* EL form view scrollea, no sus hijos */
     overflow-x: hidden !important;
-}
-.o_view_controller,
-.o_content {
-    overflow-y: auto !important;
+    /* height la sigue poniendo el view controller (100%), no la tocamos */
 }
 
-/* 4. Liberar el scroll container interno de la columna izquierda */
-.o_form_view.o_xxl_form_view .o_form_view_container {
+/* ═══════════════════════════════════════════════════════════════
+   PASO 2: El contenedor del form (antes columna izquierda).
+   Debe dejar de ser scroll container y crecer con su contenido.
+   ═══════════════════════════════════════════════════════════════ */
+.o_form_view.o_xxl_form_view > .o_form_view_container {
+    flex: 0 0 auto !important;      /* no estirarse, crecer con contenido */
+    height: auto !important;
+    overflow: visible !important;   /* cede el scroll al padre */
     width: 100% !important;
     max-width: 100% !important;
-    flex: 1 1 auto !important;
-    overflow: visible !important;
-    height: auto !important;
 }
 
-/* 5. Form sheet bg — ancho completo */
+/* El renderer dentro del container */
+.o_form_view.o_xxl_form_view .o_form_renderer {
+    height: auto !important;
+    overflow: visible !important;
+}
+
+/* El sheet bg no debe forzar min-height:100% cuando el padre
+   ya no tiene altura fija — evita que empuje el contenido fuera */
 .o_form_view.o_xxl_form_view .o_form_sheet_bg {
-    flex: 1 1 auto !important;
-    width: 100% !important;
-    min-width: 0 !important;
+    min-height: auto !important;
     overflow: visible !important;
-    height: auto !important;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   CHATTER CONTAINER — ancho total, eliminar vestidos de aside
-   ───────────────────────────────────────────────────────────── */
-.o_FormRenderer_chatterContainer,
-.o_FormRenderer_chatterContainer.o-aside,
-.o_FormRenderer_chatterContainer.oe_chatter,
-.o_FormRenderer_chatterContainer.oe_chatter.o-aside {
+/* ═══════════════════════════════════════════════════════════════
+   PASO 3: El chatter container.
+   Cubrir AMBOS estados: con y sin .o-aside
+   (OWL sigue añadiendo o-aside pero el CSS lo neutraliza)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Con o-aside (modo xxl normal de Odoo — el que queremos neutralizar) */
+.o_form_view .o_FormRenderer_chatterContainer.o-aside,
+.o_FormRenderer_chatterContainer.o-aside {
+    /* Ancho completo — eliminar el panel lateral */
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    flex: 0 0 100% !important;
-    align-self: stretch !important;
+    flex: 0 0 auto !important;
 
-    /* Eliminar vestigios del modo aside */
+    /* Quitar todos los estilos del modo aside */
     position: static !important;
-    top: auto !important;
-    bottom: auto !important;
-    left: auto !important;
-    right: auto !important;
-    border-left: none !important;
-
-    /* Ceder el scroll al padre */
-    overflow-y: visible !important;
-    overflow-x: visible !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
+    overflow: visible !important;
+    border-left: none !important;
 
     /* Separador visual */
-    border-top: 1px solid var(--o-form-view-separator-color, var(--bs-border-color, #dee2e6)) !important;
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-    box-sizing: border-box !important;
+    border-top: 1px solid var(--bs-border-color, #dee2e6) !important;
 }
 
-/* Elemento interno .o_chatter */
-.o_FormRenderer_chatterContainer .o_chatter,
-.o_FormRenderer_chatterContainer.o-aside .o_chatter {
+/* Sin o-aside (pantallas pequeñas o después de que el observer lo quite) */
+.o_form_view .o_FormRenderer_chatterContainer,
+.o_FormRenderer_chatterContainer {
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
     overflow: visible !important;
+    border-left: none !important;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   OCULTAR BOTÓN DE TOGGLE DE POSICIÓN (si existe)
-   ───────────────────────────────────────────────────────────── */
+/* El .o_chatter interno también debe ser ancho completo */
+.o_FormRenderer_chatterContainer .o_chatter {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PASO 4: Ocultar toggle de posición si existe
+   ═══════════════════════════════════════════════════════════════ */
 .o_form_button_open_chatter,
 .o_ChatterTopbar_toggleButton,
 button.o_chatter_position_toggle {
