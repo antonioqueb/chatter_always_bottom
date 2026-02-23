@@ -1,17 +1,104 @@
 /*
- * Chatter Always Bottom — Odoo 19  
- * Alphaqueb Consulting SAS — v3.0.0 DEBUG
- * CSS mínimo para no interferir mientras hacemos diagnóstico.
- * Solo eliminamos o-aside visualmente para que el chatter sea visible.
+ * Chatter Always Bottom — Odoo 19
+ * Alphaqueb Consulting SAS — v4.0.0 FINAL
+ *
+ * DIAGNÓSTICO CONFIRMADO:
+ *  - Clase real del container: o-mail-ChatterContainer (NO o_FormRenderer_chatterContainer)
+ *  - Clase real del chatter:   o-mail-Chatter
+ *  - Clase aside que aplica:   o-aside
+ *  - Form view en modo xxl:    o_xxl_form_view  (flex-direction:row, height:953px, overflow-y:hidden)
+ *
+ * ESTRATEGIA:
+ *  1. Form view: row → column, overflow-y:auto (se convierte en scroll container)
+ *  2. Form view container: ceder scroll al padre (overflow:visible, height:auto)
+ *  3. ChatterContainer: ancho 100%, quitar aside, height:auto
+ *  4. Chatter interno: quitar h-100 y overflow-auto para que fluya naturalmente
  */
 
-/* Solo este override mínimo para que el chatter sea visible abajo
-   sin tocar scroll ni layout — así vemos el estado real */
-.o_FormRenderer_chatterContainer.o-aside {
-    position: static !important;
-    width: 100% !important;
-    border-left: none !important;
+/* ── 1. FORM VIEW: columna + scroll ───────────────────────────────────────── */
+.o_form_view.o_xxl_form_view {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    /* height:100% la mantiene el view controller, no la tocamos */
+}
+
+/* ── 2. CONTENEDOR DEL FORM (era columna izquierda en modo row) ───────────── */
+.o_form_view.o_xxl_form_view > .o_form_view_container {
+    flex: 0 0 auto !important;
     height: auto !important;
     overflow: visible !important;
-    border-top: 1px solid var(--bs-border-color, #dee2e6);
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+}
+
+/* Renderer y sheet bg — crecer con el contenido */
+.o_form_view.o_xxl_form_view .o_form_renderer,
+.o_form_view.o_xxl_form_view .o_form_sheet_bg {
+    height: auto !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+}
+
+/* ── 3. CHATTER CONTAINER (clase real Odoo 19) ────────────────────────────── */
+/* Con o-aside (estado normal en pantallas anchas — el que bloqueamos) */
+.o-mail-ChatterContainer.o-aside,
+.o-mail-Form-chatter.o-aside {
+    /* Ancho completo — eliminar columna lateral */
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+    align-self: auto !important;
+
+    /* Quitar todos los estilos del modo aside */
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-left: none !important;
+
+    /* Separador visual */
+    border-top: 1px solid var(--bs-border-color, #dee2e6) !important;
+}
+
+/* Sin o-aside (seguridad) */
+.o-mail-ChatterContainer,
+.o-mail-Form-chatter {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-left: none !important;
+}
+
+/* ── 4. CHATTER INTERNO ───────────────────────────────────────────────────── */
+/*
+ * .o-mail-Chatter tiene h-100 (height:100%) y overflow-auto.
+ * En modo column, si el padre es height:auto, h-100 = 0 → chatter invisible.
+ * Lo convertimos a height:auto para que fluya con el contenido.
+ * overflow:visible para que el scroll sea del form view padre.
+ */
+.o-mail-Chatter {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex-grow: 0 !important; /* quitar flex-grow-1 que causaba distorsión */
+}
+
+/* El contenido del chatter también debe fluir */
+.o-mail-Chatter-content {
+    height: auto !important;
+    overflow: visible !important;
+    flex-grow: 0 !important;
+}
+
+/* ── 5. OCULTAR TOGGLE DE POSICIÓN ───────────────────────────────────────── */
+.o_form_button_open_chatter,
+.o_ChatterTopbar_toggleButton,
+button.o_chatter_position_toggle {
+    display: none !important;
 }
