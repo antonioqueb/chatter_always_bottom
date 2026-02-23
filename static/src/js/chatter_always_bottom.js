@@ -30,7 +30,7 @@ if (formRendererMod?.FormRenderer) {
          * o "bottom" (chatter abajo). Forzamos siempre "bottom".
          * Origen confirmado: mailLayout @ form_renderer.js:51
          */
-        get mailLayout() {
+        mailLayout() {
             return "bottom";
         },
     });
