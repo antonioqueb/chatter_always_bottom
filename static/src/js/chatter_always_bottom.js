@@ -1,55 +1,59 @@
 /** @odoo-module **/
 /**
  * Chatter Always Bottom — Odoo 19
- * Alphaqueb Consulting SAS — v9.0.0 FINAL
+ * Alphaqueb Consulting SAS — v9.1.0
  *
- * DIAGNÓSTICO DEFINITIVO (console.table confirmado):
- *
- * Árbol DOM real:
- *  [4] .o_form_view.o_xxl_form_view        flex-direction: column ✓ (ya aplicamos)
- *  [3] .o_form_view_container               flex-direction: column ✓ (ya aplicamos)
- *  [2] main.o_content                       display: block
- *  [1] .o_form_renderer  ← EL CULPABLE      flex-direction: ROW  ← aquí ocurre el split
- *  [0] .o-mail-ChatterContainer             x: 1400 (fuera del viewport)
- *
- * FIX: aplicar flex-direction:column + overflow:visible al .o_form_renderer
+ * FIX v9.1: El chatter baja correctamente (x:0, top:1101 ✓)
+ * pero el form sheet no expande al ancho completo porque
+ * .o_form_sheet tiene max-width fijo (~1140px).
+ * Solución: forzar width/max-width 100% en sheet y sheet_bg.
  */
 
 function applyAll() {
-    // 1. o_form_renderer — EL CULPABLE REAL
-    document.querySelectorAll(
-        ".o_xxl_form_view .o_form_renderer"
-    ).forEach((el) => {
+    // 1. o_form_renderer — el culpable del split (confirmado)
+    document.querySelectorAll(".o_xxl_form_view .o_form_renderer").forEach((el) => {
         el.style.setProperty("flex-direction", "column",  "important");
         el.style.setProperty("flex-wrap",      "nowrap",  "important");
         el.style.setProperty("height",         "auto",    "important");
         el.style.setProperty("overflow",       "visible", "important");
+        el.style.setProperty("width",          "100%",    "important");
     });
 
-    // 2. Form view y container (capas superiores — ya funcionaban)
+    // 2. Form view
     document.querySelectorAll(".o_form_view.o_xxl_form_view").forEach((el) => {
         el.style.setProperty("flex-direction", "column", "important");
         el.style.setProperty("overflow-y",     "auto",   "important");
         el.style.setProperty("overflow-x",     "hidden", "important");
     });
 
+    // 3. Form view container
     document.querySelectorAll(".o_xxl_form_view .o_form_view_container").forEach((el) => {
         el.style.setProperty("flex-direction", "column",   "important");
         el.style.setProperty("flex",           "1 1 auto", "important");
         el.style.setProperty("height",         "auto",     "important");
         el.style.setProperty("overflow",       "visible",  "important");
         el.style.setProperty("width",          "100%",     "important");
+        el.style.setProperty("max-width",      "100%",     "important");
     });
 
-    // 3. Sheet bg
+    // 4. Sheet bg — quitar el ancho que quedaba limitado al área sin aside
     document.querySelectorAll(".o_xxl_form_view .o_form_sheet_bg").forEach((el) => {
+        el.style.setProperty("width",      "100%",    "important");
+        el.style.setProperty("max-width",  "100%",    "important");
         el.style.setProperty("height",     "auto",    "important");
         el.style.setProperty("overflow",   "visible", "important");
         el.style.setProperty("min-height", "0",       "important");
-        el.style.setProperty("width",      "100%",    "important");
+        el.style.setProperty("flex",       "1 1 auto","important");
     });
 
-    // 4. ChatterContainer: ancho completo, quitar aside
+    // 5. Form sheet — tiene max-width fijo (~1140px) que crea espacio en blanco
+    document.querySelectorAll(".o_xxl_form_view .o_form_sheet").forEach((el) => {
+        el.style.setProperty("width",     "100%",    "important");
+        el.style.setProperty("max-width", "100%",    "important");
+        el.style.setProperty("overflow",  "visible", "important");
+    });
+
+    // 6. ChatterContainer: ancho completo, quitar aside
     document.querySelectorAll(".o-mail-ChatterContainer, .o-mail-Form-chatter").forEach((el) => {
         el.style.setProperty("width",       "100%",    "important");
         el.style.setProperty("max-width",   "100%",    "important");
@@ -65,7 +69,7 @@ function applyAll() {
         el.classList.remove("o-aside");
     });
 
-    // 5. Chatter interno: quitar h-100 que lo colapsa en modo column
+    // 7. Chatter interno: quitar h-100
     document.querySelectorAll(".o-mail-Chatter").forEach((el) => {
         el.style.setProperty("height",     "auto",    "important");
         el.style.setProperty("min-height", "0",       "important");
@@ -100,7 +104,7 @@ function init() {
     setTimeout(applyAll, 300);
     setTimeout(applyAll, 800);
     setTimeout(applyAll, 2000);
-    console.debug("[CAB] v9.0 activo ✓");
+    console.debug("[CAB] v9.1 activo ✓");
 }
 
 init();
