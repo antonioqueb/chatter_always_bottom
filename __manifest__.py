@@ -27,7 +27,6 @@ Compatible con Odoo 19 Community y Enterprise.
     'depends': ['mail', 'web'],
     'assets': {
         'web.assets_backend': [
-            'chatter_always_bottom/static/src/css/chatter_always_bottom.css',
             'chatter_always_bottom/static/src/js/chatter_always_bottom.js',
         ],
     },

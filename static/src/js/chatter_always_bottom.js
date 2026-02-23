@@ -1,22 +1,108 @@
 /** @odoo-module **/
 /**
  * Chatter Always Bottom — Odoo 19
- * Alphaqueb Consulting SAS — v4.0.0 FINAL
+ * Alphaqueb Consulting SAS — v5.0.0
  *
- * Clases reales confirmadas por diagnóstico:
- *  - Container: o-mail-ChatterContainer  (antes era o_FormRenderer_chatterContainer)
- *  - Aside:     o-aside
+ * CSS inyectado directamente desde JS para evitar depender
+ * del bundle de assets (que requiere -u para regenerarse).
+ * El JS sí carga siempre sin necesidad de regenerar.
+ *
+ * Clases reales confirmadas por diagnóstico en producción:
+ *   Container : o-mail-ChatterContainer  (+ o-mail-Form-chatter)
+ *   Aside     : o-aside
+ *   Form view : o_xxl_form_view (flex-direction:row, ya cambia a column con JS)
  */
 
-const LOG = (...a) => console.debug("[CAB]", ...a);
+// ─── INYECCIÓN DE CSS ────────────────────────────────────────────────────────
+const CSS = `
+/* Chatter Always Bottom v5 — Alphaqueb Consulting SAS */
 
-const CHATTER_CLASS  = "o-mail-ChatterContainer";
-const ASIDE_CLASS    = "o-aside";
+/* 1. Form view: row → column + scroll */
+.o_form_view.o_xxl_form_view {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* 2. Contenedor del form: ceder scroll al padre */
+.o_form_view.o_xxl_form_view > .o_form_view_container {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+}
+
+.o_form_view.o_xxl_form_view .o_form_renderer,
+.o_form_view.o_xxl_form_view .o_form_sheet_bg {
+    height: auto !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+}
+
+/* 3. ChatterContainer — quitar columna lateral, ancho completo */
+.o-mail-ChatterContainer.o-aside,
+.o-mail-Form-chatter.o-aside,
+.o-mail-ChatterContainer,
+.o-mail-Form-chatter {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-left: none !important;
+}
+
+.o-mail-ChatterContainer.o-aside,
+.o-mail-Form-chatter.o-aside {
+    border-top: 1px solid var(--bs-border-color, #dee2e6) !important;
+}
+
+/* 4. Chatter interno: quitar h-100 que lo hace invisible en modo column */
+.o-mail-Chatter {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex-grow: 0 !important;
+}
+
+.o-mail-Chatter-content {
+    height: auto !important;
+    overflow: visible !important;
+    flex-grow: 0 !important;
+}
+`;
+
+function injectCSS() {
+    if (document.getElementById("chatter-always-bottom-styles")) return;
+    const style = document.createElement("style");
+    style.id = "chatter-always-bottom-styles";
+    style.textContent = CSS;
+    document.head.appendChild(style);
+    console.debug("[CAB] CSS inyectado ✓");
+}
+
+// Inyectar lo antes posible
+if (document.head) {
+    injectCSS();
+} else {
+    document.addEventListener("DOMContentLoaded", injectCSS);
+}
+
+// ─── MUTATIONOBSERVER: quitar o-aside del container ──────────────────────────
+const CHATTER = "o-mail-ChatterContainer";
+const ASIDE   = "o-aside";
 
 function removeAside(el) {
     if (!el?.classList) return;
-    if (el.classList.contains(CHATTER_CLASS) && el.classList.contains(ASIDE_CLASS)) {
-        requestAnimationFrame(() => el.classList.remove(ASIDE_CLASS));
+    if (el.classList.contains(CHATTER) && el.classList.contains(ASIDE)) {
+        requestAnimationFrame(() => el.classList.remove(ASIDE));
     }
 }
 
@@ -28,13 +114,14 @@ const observer = new MutationObserver((mutations) => {
             m.addedNodes.forEach((n) => {
                 if (n.nodeType !== Node.ELEMENT_NODE) return;
                 removeAside(n);
-                n.querySelectorAll?.(`.${CHATTER_CLASS}.${ASIDE_CLASS}`).forEach(removeAside);
+                n.querySelectorAll?.(`.${CHATTER}.${ASIDE}`).forEach(removeAside);
             });
         }
     }
 });
 
 function init() {
+    injectCSS(); // segunda llamada por si acaso
     if (document.body) {
         observer.observe(document.body, {
             attributes: true,
@@ -42,7 +129,7 @@ function init() {
             childList: true,
             subtree: true,
         });
-        LOG("v4.0 activo — clases reales Odoo 19 ✓");
+        console.debug("[CAB] v5.0 activo — CSS inyectado, observer corriendo ✓");
     } else {
         document.addEventListener("DOMContentLoaded", init);
     }
