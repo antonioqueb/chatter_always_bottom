@@ -1,13 +1,18 @@
 /** @odoo-module **/
 /**
  * Chatter Always Bottom — Odoo 19
- * Alphaqueb Consulting SAS — v9.1.0
+ * Alphaqueb Consulting SAS — v9.2.0
  *
- * FIX v9.1: El chatter baja correctamente (x:0, top:1101 ✓)
- * pero el form sheet no expande al ancho completo porque
- * .o_form_sheet tiene max-width fijo (~1140px).
- * Solución: forzar width/max-width 100% en sheet y sheet_bg.
+ * FIX v9.2: Excluir .o-mail-ChatterContainer dentro de reportes contables
+ * (.o_account_report_chatter) para no romper el layout de libro mayor,
+ * balance general, etc.
  */
+
+// ─── Helper: ¿es el chatter de un reporte contable? ─────────────────────────
+function isAccountReportChatter(el) {
+    return el.classList.contains("o_account_report_chatter") ||
+           !!el.closest(".o_account_report_chatter, .o_account_report_scroll_container, .o_account_reports_page");
+}
 
 function applyAll() {
     // 1. o_form_renderer — el culpable del split (confirmado)
@@ -36,7 +41,7 @@ function applyAll() {
         el.style.setProperty("max-width",      "100%",     "important");
     });
 
-    // 4. Sheet bg — quitar el ancho que quedaba limitado al área sin aside
+    // 4. Sheet bg
     document.querySelectorAll(".o_xxl_form_view .o_form_sheet_bg").forEach((el) => {
         el.style.setProperty("width",      "100%",    "important");
         el.style.setProperty("max-width",  "100%",    "important");
@@ -46,15 +51,17 @@ function applyAll() {
         el.style.setProperty("flex",       "1 1 auto","important");
     });
 
-    // 5. Form sheet — tiene max-width fijo (~1140px) que crea espacio en blanco
+    // 5. Form sheet
     document.querySelectorAll(".o_xxl_form_view .o_form_sheet").forEach((el) => {
         el.style.setProperty("width",     "100%",    "important");
         el.style.setProperty("max-width", "100%",    "important");
         el.style.setProperty("overflow",  "visible", "important");
     });
 
-    // 6. ChatterContainer: ancho completo, quitar aside
+    // 6. ChatterContainer: SOLO si NO es el chatter de reporte contable
     document.querySelectorAll(".o-mail-ChatterContainer, .o-mail-Form-chatter").forEach((el) => {
+        if (isAccountReportChatter(el)) return; // ← skip reportes contables
+
         el.style.setProperty("width",       "100%",    "important");
         el.style.setProperty("max-width",   "100%",    "important");
         el.style.setProperty("min-width",   "0",       "important");
@@ -69,8 +76,10 @@ function applyAll() {
         el.classList.remove("o-aside");
     });
 
-    // 7. Chatter interno: quitar h-100
+    // 7. Chatter interno: quitar h-100 (solo en formularios, no en reportes)
     document.querySelectorAll(".o-mail-Chatter").forEach((el) => {
+        if (isAccountReportChatter(el)) return; // ← skip reportes contables
+
         el.style.setProperty("height",     "auto",    "important");
         el.style.setProperty("min-height", "0",       "important");
         el.style.setProperty("max-height", "none",    "important");
@@ -79,6 +88,8 @@ function applyAll() {
     });
 
     document.querySelectorAll(".o-mail-Chatter-content").forEach((el) => {
+        if (isAccountReportChatter(el)) return; // ← skip reportes contables
+
         el.style.setProperty("height",    "auto",    "important");
         el.style.setProperty("overflow",  "visible", "important");
         el.style.setProperty("flex-grow", "0",       "important");
@@ -104,7 +115,7 @@ function init() {
     setTimeout(applyAll, 300);
     setTimeout(applyAll, 800);
     setTimeout(applyAll, 2000);
-    console.debug("[CAB] v9.1 activo ✓");
+    console.debug("[CAB] v9.2 activo ✓");
 }
 
 init();
