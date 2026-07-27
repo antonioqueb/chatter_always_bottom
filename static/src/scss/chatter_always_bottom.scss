@@ -1,0 +1,122 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Chatter Always Bottom — Odoo 19 (v10: CSS puro)
+//
+// Sustituye por completo al JS anterior, que aplicaba estas mismas reglas
+// con element.style.setProperty(..., "important") desde un MutationObserver
+// sobre document.body que escuchaba cambios de "style"/"class". Como el
+// callback ESCRIBÍA style, se re-disparaba a sí mismo: un bucle infinito a
+// ~60 fps (8 querySelectorAll sobre todo el documento y ~50 setProperty por
+// frame) que consumía CPU durante TODA la sesión, no solo en formularios.
+//
+// Las mismas reglas en CSS: coste cero, sin observers y sin JS.
+// Regla de exclusión: los chatters dentro de reportes contables
+// (.o_account_report_*) NO se tocan — rompía el layout de libro mayor.
+// ═══════════════════════════════════════════════════════════════════════════
+
+.o_xxl_form_view {
+
+    .o_form_renderer {
+        flex-direction: column !important;
+        flex-wrap: nowrap !important;
+        height: auto !important;
+        overflow: visible !important;
+        width: 100% !important;
+    }
+
+    &.o_form_view {
+        flex-direction: column !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+
+    .o_form_view_container {
+        flex-direction: column !important;
+        flex: 1 1 auto !important;
+        height: auto !important;
+        overflow: visible !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .o_form_sheet_bg {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        min-height: 0 !important;
+        flex: 1 1 auto !important;
+    }
+
+    .o_form_sheet {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow: visible !important;
+    }
+}
+
+// Chatter al fondo, ancho completo — excepto dentro de reportes contables.
+.o-mail-ChatterContainer,
+.o-mail-Form-chatter {
+    &:not(.o_account_report_chatter) {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        flex: 0 0 auto !important;
+        position: static !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        border-left: none !important;
+        border-top: 1px solid var(--bs-border-color, #dee2e6) !important;
+    }
+}
+
+// El JS hacía classList.remove("o-aside"); en CSS se neutraliza el efecto
+// del modificador sin tocar el DOM.
+.o-mail-ChatterContainer.o-aside:not(.o_account_report_chatter),
+.o-mail-Form-chatter.o-aside:not(.o_account_report_chatter) {
+    width: 100% !important;
+    max-width: 100% !important;
+    position: static !important;
+    border-left: none !important;
+}
+
+.o-mail-Chatter {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex-grow: 0 !important;
+}
+
+.o-mail-Chatter-content {
+    height: auto !important;
+    overflow: visible !important;
+    flex-grow: 0 !important;
+}
+
+// Restaurar el comportamiento nativo dentro de reportes contables: las
+// reglas de arriba usan :not() para los contenedores, pero el chatter
+// interno puede anidarse, así que se revierte explícitamente.
+.o_account_report_chatter,
+.o_account_report_scroll_container,
+.o_account_reports_page {
+
+    .o-mail-Chatter,
+    .o-mail-Chatter-content,
+    .o-mail-ChatterContainer,
+    .o-mail-Form-chatter {
+        height: revert !important;
+        min-height: revert !important;
+        max-height: revert !important;
+        overflow: revert !important;
+        flex: revert !important;
+        flex-grow: revert !important;
+        position: revert !important;
+        width: revert !important;
+        max-width: revert !important;
+        border-left: revert !important;
+        border-top: revert !important;
+    }
+}

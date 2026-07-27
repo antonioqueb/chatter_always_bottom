@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Chatter Always Bottom',
-    'version': '19.0.1.0.0',
+    'version': '19.0.2.0.0',
     'category': 'Technical',
     'summary': 'Fuerza el chatter a mostrarse siempre en la parte inferior de los formularios',
     'description': """
@@ -15,9 +15,11 @@ Por defecto Odoo 17+ mueve el chatter a un panel lateral derecho cuando la
 pantalla es suficientemente ancha (xxl breakpoint). Este módulo anula ese
 comportamiento de forma definitiva mediante:
 
-1. Sobrescritura CSS de todas las clases relevantes del layout.
-2. Parche JavaScript del componente ChatterContainer para suprimir el modo aside.
-3. MutationObserver como capa de defensa ante renders dinámicos.
+Implementado con CSS puro (v10): la versión anterior aplicaba las mismas
+reglas desde JavaScript con un MutationObserver sobre document.body que
+observaba cambios de 'style' mientras su propio callback ESCRIBÍA 'style',
+provocando un bucle de retroalimentación a ~60 fps que consumía CPU durante
+toda la sesión. Sin JS, sin observers, mismo resultado visual.
 
 Compatible con Odoo 19 Community y Enterprise.
     """,
@@ -27,7 +29,7 @@ Compatible con Odoo 19 Community y Enterprise.
     'depends': ['mail', 'web'],
     'assets': {
         'web.assets_backend': [
-            'chatter_always_bottom/static/src/js/chatter_always_bottom.js',
+            'chatter_always_bottom/static/src/scss/chatter_always_bottom.scss',
         ],
     },
     'installable': True,
